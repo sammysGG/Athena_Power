@@ -1,0 +1,364 @@
+---
+# SCADA-range deployment (systemd-native — no Docker).
+#
+# Targets: Debian/Ubuntu host on the isolated range network.
+# Result : source synced to {{ scada_dir }}, a shared Python venv, and four
+#          systemd units — scada-simulator, scada-modbus, scada-bridge,
+#          scada-hmi — with the HMI fronted by nginx TLS and the Modbus TCP
+#          slave exposed on the OT VLAN.
+#
+# Run:
+#   ansible-playbook -i inventory.ini playbook.yml
+#
+# First-time bootstrap (target with no python yet) — install python3 first:
+#   ansible -i inventory.ini all -m raw -a 'apt-get update && apt-get install -y python3' -b
+
+- name: Deploy SCADA cyber range
+  hosts: scada_range
+  become: true
+  gather_facts: true
+
+  vars:
+    scada_dir: /opt/scada-range
+    scada_venv: /opt/scada-range/.venv
+    scada_services:
+      - scada-simulator.service
+      - scada-modbus.service
+      - scada-bridge.service
+      - scada-hmi.service
+
+  tasks:
+    # ─── 1. System prerequisites ─────────────────────────────────────────
+    - name: Install apt prerequisites
+      ansible.builtin.apt:
+        name:
+          - python3
+          - python3-venv
+          - python3-pip
+          - rsync
+          - nginx
+          - openssl
+          - ca-certificates
+        update_cache: true
+        cache_valid_time: 3600
+
+    # ─── 2. Unprivileged service account ─────────────────────────────────
+    - name: Create scada system group
+      ansible.builtin.group:
+        name: scada
+        system: true
+
+    - name: Create scada system user
+      ansible.builtin.user:
+        name: scada
+        group: scada
+        system: true
+        create_home: false
+        shell: /usr/sbin/nologin
+
+    # ─── 3. Push the source tree ─────────────────────────────────────────
+    - name: Ensure deploy directory exists
+      ansible.builtin.file:
+        path: "{{ scada_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Sync SCADA source to host
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../../"
+        dest: "{{ scada_dir }}/"
+        delete: true
+        rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=__pycache__"
+          - "--exclude=.env"
+          - "--exclude=.venv"
+          - "--exclude=deploy/"
+          # Offensive tooling / answer key — never lands on the target box.
+          - "--exclude=red-team/"
+
+    # ─── 4. Python venv + per-service dependencies ───────────────────────
+    - name: Create the venv and install each service's dependencies
+      ansible.builtin.pip:
+        requirements: "{{ scada_dir }}/services/{{ item }}/requirements.txt"
+        virtualenv: "{{ scada_venv }}"
+        virtualenv_command: python3 -m venv
+      loop:
+        - simulator
+        - modbus-server
+        - bridge
+        - hmi
+
+    - name: Create the bridge state directory (telemetry.db)
+      ansible.builtin.file:
+        path: /var/lib/scada
+        state: directory
+        owner: scada
+        group: scada
+        mode: '0750'
+
+    # ─── 5. Range-appropriate shared .env (read by every unit) ───────────
+    - name: Render .env from template
+      ansible.builtin.template:
+        src: env.j2
+        dest: "{{ scada_dir }}/.env"
+        owner: scada
+        group: scada
+        mode: '0640'
+
+    - name: Own the deploy tree as scada
+      ansible.builtin.file:
+        path: "{{ scada_dir }}"
+        state: directory
+        owner: scada
+        group: scada
+        recurse: true
+
+    # ─── 6. systemd units ────────────────────────────────────────────────
+    - name: Install the simulator unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/scada-simulator.service
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=SCADA range - plant simulator (FastAPI)
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=exec
+          User=scada
+          Group=scada
+          WorkingDirectory={{ scada_dir }}/services/simulator
+          EnvironmentFile={{ scada_dir }}/.env
+          ExecStart={{ scada_venv }}/bin/uvicorn app:app --host 127.0.0.1 --port 9101
+          Restart=on-failure
+          RestartSec=3
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Install the modbus-server unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/scada-modbus.service
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=SCADA range - Modbus TCP slave (OT attack surface)
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=exec
+          User=scada
+          Group=scada
+          WorkingDirectory={{ scada_dir }}/services/modbus-server
+          EnvironmentFile={{ scada_dir }}/.env
+          ExecStart={{ scada_venv }}/bin/python app.py
+          Restart=on-failure
+          RestartSec=3
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Install the bridge unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/scada-bridge.service
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=SCADA range - protocol bridge / historian (FastAPI)
+          After=network-online.target scada-simulator.service scada-modbus.service
+          Wants=network-online.target scada-simulator.service scada-modbus.service
+
+          [Service]
+          Type=exec
+          User=scada
+          Group=scada
+          WorkingDirectory={{ scada_dir }}/services/bridge
+          EnvironmentFile={{ scada_dir }}/.env
+          ExecStart={{ scada_venv }}/bin/uvicorn app:app --host 127.0.0.1 --port 9102
+          Restart=on-failure
+          RestartSec=3
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Install the HMI unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/scada-hmi.service
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=SCADA range - operator HMI (FastAPI)
+          After=network-online.target scada-bridge.service
+          Wants=network-online.target scada-bridge.service
+
+          [Service]
+          Type=exec
+          User=scada
+          Group=scada
+          WorkingDirectory={{ scada_dir }}/services/hmi
+          EnvironmentFile={{ scada_dir }}/.env
+          ExecStart={{ scada_venv }}/bin/uvicorn app:app --host {{ hmi_bind }} --port {{ hmi_port }}
+          Restart=on-failure
+          RestartSec=3
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Enable and (re)start the scada services
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: true
+        state: restarted
+      loop: "{{ scada_services }}"
+
+    # ─── 7. Health checks ────────────────────────────────────────────────
+    - name: Wait for the simulator
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9101/health
+        status_code: 200
+      register: sim_health
+      retries: 20
+      delay: 3
+      until: sim_health.status == 200
+
+    - name: Wait for the bridge
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9102/health
+        status_code: 200
+      register: bridge_health
+      retries: 20
+      delay: 3
+      until: bridge_health.status == 200
+
+    - name: Wait for the Modbus TCP slave to accept connections
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ modbus_port }}"
+        timeout: 30
+
+    - name: Wait for the HMI
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ hmi_port }}/health"
+        status_code: 200
+      register: hmi_health
+      retries: 20
+      delay: 3
+      until: hmi_health.status == 200
+
+    # ─── 8. HTTPS: front the HMI with nginx + self-signed TLS ────────────
+    - name: Create TLS cert directory
+      ansible.builtin.file:
+        path: /etc/ssl/range
+        state: directory
+        mode: '0700'
+
+    - name: Generate self-signed TLS cert for the HMI
+      ansible.builtin.shell:
+        cmd: >
+          openssl req -x509 -nodes -sha256 -days 825 -newkey rsa:2048
+          -keyout /etc/ssl/range/key.pem -out /etc/ssl/range/cert.pem
+          -subj "/C=UK/CN={{ scada_domain }}"
+          -addext "subjectAltName=DNS:{{ scada_domain }}"
+        executable: /bin/bash
+        creates: /etc/ssl/range/cert.pem
+
+    - name: Configure nginx TLS reverse proxy for the HMI
+      ansible.builtin.copy:
+        dest: /etc/nginx/sites-available/scada-hmi.conf
+        content: |
+          server {
+              listen 80;
+              server_name {{ scada_domain }};
+              return 301 https://$host$request_uri;
+          }
+          server {
+              listen 443 ssl;
+              server_name {{ scada_domain }};
+
+              ssl_certificate     /etc/ssl/range/cert.pem;
+              ssl_certificate_key /etc/ssl/range/key.pem;
+
+              location / {
+                  proxy_pass http://127.0.0.1:{{ hmi_port }};
+                  proxy_http_version 1.1;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection "upgrade";
+              }
+          }
+
+    - name: Enable the HMI nginx site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/scada-hmi.conf
+        dest: /etc/nginx/sites-enabled/scada-hmi.conf
+        state: link
+
+    - name: Disable the default nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Reload nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+        enabled: true
+
+    - name: Verify HTTPS HMI is serving through nginx
+      ansible.builtin.uri:
+        url: "https://127.0.0.1/health"
+        validate_certs: false
+        headers:
+          Host: "{{ scada_domain }}"
+        status_code: 200
+      register: hmi_https
+      retries: 5
+      delay: 2
+      until: hmi_https.status == 200
+
+    # ─── 9. Optional host firewall opening ───────────────────────────────
+    - name: Open HMI (HTTP/HTTPS) + Modbus in ufw (only if ufw is active)
+      when: range_open_firewall | default(false)
+      block:
+        - name: Check if ufw is installed
+          ansible.builtin.command: which ufw
+          register: ufw_installed
+          failed_when: false
+          changed_when: false
+        - name: Allow HTTP/HTTPS for the HMI
+          when: ufw_installed.rc == 0
+          community.general.ufw:
+            rule: allow
+            port: "{{ item }}"
+            proto: tcp
+          loop:
+            - 80
+            - 443
+        - name: Allow Modbus port
+          when: ufw_installed.rc == 0
+          community.general.ufw:
+            rule: allow
+            port: "{{ modbus_port }}"
+            proto: tcp
+
+    # ─── 10. Post-deploy summary ─────────────────────────────────────────
+    - name: Print access info
+      ansible.builtin.debug:
+        msg:
+          - "HMI:    https://{{ scada_domain }}   (nginx TLS -> 127.0.0.1:{{ hmi_port }})"
+          - "Manual: https://{{ scada_domain }}/manual"
+          - "Modbus: {{ inventory_hostname }}:{{ modbus_port }}  (HR20 writable, raw TCP)"
+          - "Login:  {{ hmi_username }} / {{ hmi_password }}"
+          - "Services: {{ scada_services | join(', ') }}"
+          - "Run red-team chain from your kit box:"
+          - "  python3 exploit.py --target {{ inventory_hostname }} --mb {{ inventory_hostname }}"

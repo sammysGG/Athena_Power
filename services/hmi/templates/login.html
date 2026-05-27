@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{{ site_name }} — SCADA Login</title>
+    <link rel="stylesheet" href="/static/css/scada.css">
+    <style>
+        body { display: grid; place-items: center; }
+        .login-card {
+            width: 380px;
+            background: var(--panel);
+            border: 1px solid var(--line-2);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+        }
+        .login-card header {
+            background: linear-gradient(180deg, #11202f 0%, #06101a 100%);
+            border-bottom: 1px solid var(--line-2);
+            padding: 16px 22px;
+            display: flex; align-items: center; gap: 12px;
+        }
+        .login-card header .mark {
+            width: 18px; height: 18px;
+            background: var(--accent);
+            clip-path: polygon(0 0, 100% 0, 100% 70%, 70% 100%, 0 100%);
+            box-shadow: 0 0 8px var(--accent-glow);
+        }
+        .login-card header h1 {
+            margin: 0; font-size: 14px; letter-spacing: 0.12em;
+            text-transform: uppercase; color: var(--value);
+        }
+        .login-card form { padding: 20px 22px 22px; display: grid; gap: 14px; }
+        .login-card label {
+            display: block; color: var(--label); text-transform: uppercase;
+            letter-spacing: 0.08em; font-size: 10px; margin-bottom: 4px;
+        }
+        .login-card input[type="text"], .login-card input[type="password"] {
+            width: 100%;
+            background: var(--panel-3);
+            border: 1px solid var(--line-2);
+            color: var(--value);
+            font-family: "Consolas", monospace;
+            font-size: 13px;
+            padding: 8px 10px;
+        }
+        .login-card input:focus { outline: none; border-color: var(--accent); }
+        .login-card .submit {
+            margin-top: 6px;
+            width: 100%;
+            padding: 9px;
+            background: linear-gradient(180deg, #1d3548 0%, #0f1f2c 100%);
+            border: 1px solid var(--accent);
+            color: var(--value);
+            font-family: "Consolas", monospace;
+            font-size: 12px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            cursor: pointer;
+        }
+        .login-card .submit:hover { background: linear-gradient(180deg, #244659 0%, #142a3d 100%); }
+        .login-card .foot { padding: 10px 22px 18px; color: var(--muted); font-size: 11px; font-family: "Consolas", monospace; }
+        .login-card .foot a { color: var(--accent); }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <header>
+            <span class="mark"></span>
+            <h1>{{ site_name }} · Operator Login</h1>
+        </header>
+        <form method="post" action="/login">
+            <div>
+                <label>Operator ID</label>
+                <input type="text" name="username" autocomplete="username" autofocus required>
+            </div>
+            <div>
+                <label>Password</label>
+                <input type="password" name="password" autocomplete="current-password" required>
+            </div>
+            {% if error %}
+            <div class="notice alarm">Invalid credentials. Try again.</div>
+            {% endif %}
+            <button class="submit" type="submit">Sign in</button>
+        </form>
+        <div class="foot">
+            CF-301 Cascade SCADA · HMI-WS-01<br>
+            Need help? See the <a href="/manual">operator manual</a>.
+        </div>
+    </div>
+</body>
+</html>

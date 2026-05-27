@@ -1,0 +1,35 @@
+---
+# ─── Range identity ─────────────────────────────────────────────────────
+scada_site_name: "Athena Range"
+scada_domain:    "scada.range.local"
+
+# ─── Vulnerable defaults (intentional for the range) ────────────────────
+# Match what /manual advertises so the default-creds path works.
+hmi_username:        "admin"
+hmi_password:        "Cool2Pass"
+viewer_username:     "viewer"
+viewer_password:     "viewer"
+
+# ─── Inter-service API keys ─────────────────────────────────────────────
+# These are NOT the attack surface — they protect the bridge ↔ HMI channel.
+# Generate once and encrypt with ansible-vault, or override at runtime:
+#   ansible-playbook ... -e bridge_api_key=... -e simulator_api_key=...
+bridge_api_key:    "CHANGE_ME_BRIDGE"
+simulator_api_key: "CHANGE_ME_SIM"
+
+# ─── Network exposure on the host ───────────────────────────────────────
+# Bind to 0.0.0.0 so red team on the range VLAN can reach both ports.
+hmi_bind:    "0.0.0.0"
+hmi_port:    18080
+modbus_bind: "0.0.0.0"
+modbus_port: 15020
+
+# ─── Plant tuning ───────────────────────────────────────────────────────
+poll_seconds:  1.0
+history_limit: 900
+event_limit:   2000
+
+# ─── Optional: open the host firewall ──────────────────────────────────
+# Set true if the target runs ufw and you want the playbook to allow
+# the HMI / Modbus ports automatically.
+range_open_firewall: false

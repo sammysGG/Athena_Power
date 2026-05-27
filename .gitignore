@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+.claude/
+.venv/
+
+# Red-team answer key / offensive tooling — never ship to a student-facing repo.
+red-team/
+

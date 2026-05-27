@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{{ site_name }} — Operator Manual</title>
+    <link rel="stylesheet" href="/static/css/scada.css">
+    <style>
+        body { overflow: auto; height: auto; min-height: 100vh; }
+        .manual {
+            max-width: 920px;
+            margin: 40px auto;
+            background: var(--panel);
+            border: 1px solid var(--line-2);
+            padding: 28px 36px 40px;
+        }
+        .manual h1 {
+            margin: 0 0 8px;
+            font-size: 20px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--value);
+        }
+        .manual .lead {
+            color: var(--muted);
+            font-family: "Consolas", monospace;
+            font-size: 12px;
+            margin-bottom: 22px;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 12px;
+        }
+        .manual h2 {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent);
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 6px;
+            margin-top: 28px;
+        }
+        .manual p { line-height: 1.55; color: var(--text); }
+        .manual code {
+            font-family: "Consolas", monospace;
+            background: var(--panel-3);
+            border: 1px solid var(--line);
+            padding: 1px 6px;
+            color: var(--accent);
+        }
+        .manual table { width: 100%; border-collapse: collapse; font-family: "Consolas", monospace; font-size: 12px; }
+        .manual th, .manual td { border-bottom: 1px solid var(--line); padding: 5px 8px; text-align: left; }
+        .manual th { color: var(--label); text-transform: uppercase; font-size: 10px; letter-spacing: 0.08em; }
+        .manual td.tag { color: var(--accent); }
+        .footnav { margin-top: 30px; font-family: "Consolas", monospace; font-size: 11px; color: var(--muted); }
+        .footnav a { color: var(--accent); margin-right: 14px; }
+    </style>
+</head>
+<body>
+<div class="manual">
+    <h1>{{ site_name }} · CF-301 Operator Manual</h1>
+    <div class="lead">Document 301-OPS-001 · Rev D · Field Engineering · Last review 2025-08-14</div>
+
+    <p>This page is published to <code>{{ scada_domain }}/manual</code> for field operators
+       on the OT VLAN. The HMI workstation (<code>HMI-WS-01</code>) is preconfigured for the
+       standard handover; the values below should be rotated by the system integrator before
+       site commissioning.</p>
+
+    <h2>1. Workstation Login</h2>
+    <p>Two stations are provisioned on the HMI. Operators sign in at the OS keylock or via
+       the on-screen login form.</p>
+    <table>
+        <thead><tr><th>Role</th><th>Username</th><th>Password</th><th>Notes</th></tr></thead>
+        <tbody>
+            <tr><td>Operator</td><td class="tag">admin</td><td class="tag">Cool2Pass</td><td>Full control. Default for commissioning — rotate at hand-off.</td></tr>
+            <tr><td>Viewer (read-only)</td><td class="tag">viewer</td><td class="tag">viewer</td><td>Intended for shift hand-off and silent observation; controls greyed out in UI.</td></tr>
+        </tbody>
+    </table>
+
+    <h2>2. Process Overview</h2>
+    <p>Cascade <code>CF-301</code> consists of three centrifuges in series (A → B → C) sharing
+       a coolant header, a feed header from <code>FCV-101</code>, and a discharge manifold to
+       the product tank <code>LT-102</code>. The PLC is a generic Modbus TCP slave; the SCADA
+       bridge polls it once per second and persists telemetry to a local SQLite store.</p>
+
+    <h2>3. Modbus Register Map</h2>
+    <p>The bridge writes process variables back to the modbus map on every poll cycle. The
+       table below is the live mapping; <strong>HR20</strong> is the single writable register
+       used for remote speed setpoint commissioning.</p>
+    <table>
+        <thead><tr><th>Register</th><th>Direction</th><th>Description</th></tr></thead>
+        <tbody>
+            <tr><td>HR0</td><td>read</td><td>Rotor speed PV (RPM)</td></tr>
+            <tr><td>HR1</td><td>read</td><td>Cascade setpoint (RPM)</td></tr>
+            <tr><td>HR2</td><td>read</td><td>Chamber temp · A (°C × 10)</td></tr>
+            <tr><td>HR3</td><td>read</td><td>Bearing temp (°C × 10)</td></tr>
+            <tr><td>HR4</td><td>read</td><td>Coolant flow (L/min × 10)</td></tr>
+            <tr><td>HR5</td><td>read</td><td>Header pressure (kPa × 10)</td></tr>
+            <tr><td>HR6</td><td>read</td><td>Vibration (mm/s × 100)</td></tr>
+            <tr><td>HR7</td><td>read</td><td>Drive power (kW × 10)</td></tr>
+            <tr><td>HR9</td><td>read</td><td>Alarm level (0/1/2)</td></tr>
+            <tr><td>HR10</td><td>read</td><td>Commanded RPM</td></tr>
+            <tr><td>HR11</td><td>read</td><td>Mirror of HR20</td></tr>
+            <tr><td>HR12</td><td>read</td><td>Control mode enum</td></tr>
+            <tr><td>HR13–19</td><td>read</td><td>Aux: motor current, feed/lube pressure, secondary temps, tank levels</td></tr>
+            <tr><td><strong>HR20</strong></td><td><strong>read / write</strong></td><td><strong>Remote speed setpoint (RPM, range 6800–14000)</strong></td></tr>
+            <tr><td>CO0–3</td><td>read</td><td>rotor_enabled, feed_enabled, coolant_override, emergency_trip</td></tr>
+        </tbody>
+    </table>
+
+    <h2>4. Network</h2>
+    <p>Default service exposure on the workstation VLAN:</p>
+    <table>
+        <thead><tr><th>Service</th><th>Port</th><th>Reachable from</th></tr></thead>
+        <tbody>
+            <tr><td>HMI (this UI)</td><td>18080/tcp</td><td>Operator VLAN</td></tr>
+            <tr><td>Modbus TCP slave (PLC)</td><td>15020/tcp</td><td>OT VLAN — unauthenticated by protocol</td></tr>
+        </tbody>
+    </table>
+
+    <h2>5. Trip Recovery</h2>
+    <p>If <code>XA-301</code> latches, allow the bowl to coast below 400 RPM and chamber
+       temperatures below 58 °C / 62 °C before requesting <code>Reset</code> from the Overview
+       tab. The cascade re-enters AUTO GOVERNOR on the next scan after reset.</p>
+
+    <div class="footnav">
+        <a href="/login">← Back to login</a>
+        <a href="/">Open HMI</a>
+    </div>
+</div>
+</body>
+</html>

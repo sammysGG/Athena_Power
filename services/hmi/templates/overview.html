@@ -1,0 +1,656 @@
+{% extends "_layout.html" %}
+{% set page_title = "CF-301 Overview" %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/overview.css">
+{% endblock %}
+
+{% block content %}
+<div class="overview-grid">
+    <!-- ─── P&ID ───────────────────────────────────────────────── -->
+    <section class="panel schematic-panel">
+        <header class="panel-header">
+            <h2>P&amp;ID — CF-301 Centrifuge Cascade
+                <span class="subtabs" id="subtabs">
+                    <a class="subtab active" data-sub="overview"  href="#overview">Overview</a>
+                    <a class="subtab"        data-sub="trends"    href="#trends">Trends</a>
+                    <a class="subtab"        data-sub="setpoints" href="#setpoints">Setpoints</a>
+                </span>
+            </h2>
+            <span class="meta">SHEET 1/1 · REV C · DRAWING 301-PID-001</span>
+        </header>
+        <div class="panel-body">
+            <div class="schematic">
+                <svg viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid meet">
+                    <text x="14" y="22"   class="schem-section">FEED</text>
+                    <text x="14" y="554"  class="schem-section">COOLANT SUPPLY</text>
+                    <text x="1186" y="22" text-anchor="end" class="schem-section">DISCHARGE</text>
+
+                    <!-- Feed tank -->
+                    <g transform="translate(40,80)">
+                        <rect x="0" y="0" width="60" height="120" class="schem-tank"/>
+                        <rect x="0" y="0" width="60" height="0" class="schem-tank-fill" id="feed-tank-fill"/>
+                        <text x="30" y="-6" class="equip-label">FEED TK</text>
+                        <text x="30" y="138" class="equip-value mono" id="feed-tank-pct">-- %</text>
+                    </g>
+                    <line x1="100" y1="100" x2="200" y2="100" class="pipe-line"/>
+
+                    <!-- FCV-101 -->
+                    <g id="fcv-101-group">
+                        <polygon points="200,80 240,100 200,120" class="valve-body" id="fcv-101-l"/>
+                        <polygon points="280,80 240,100 280,120" class="valve-body" id="fcv-101-r"/>
+                        <line x1="240" y1="75" x2="240" y2="60" stroke="#7d8a99" stroke-width="1.5"/>
+                        <rect x="232" y="54" width="16" height="8" fill="#1a2836" stroke="#7d8a99" stroke-width="1.2"/>
+                    </g>
+                    <g transform="translate(240,38)">
+                        <circle r="18" cx="0" cy="0" class="balloon-circle"/>
+                        <line x1="-18" y1="0" x2="18" y2="0" class="balloon-divider"/>
+                        <text y="-5" class="balloon-text-top">FIC</text>
+                        <text y="13" class="balloon-text-bot">101</text>
+                    </g>
+                    <line x1="280" y1="100" x2="1080" y2="100" class="pipe-line"/>
+
+                    <line x1="400" y1="100" x2="400" y2="200" class="pipe-line"/>
+                    <line x1="600" y1="100" x2="600" y2="200" class="pipe-line"/>
+                    <line x1="800" y1="100" x2="800" y2="200" class="pipe-line"/>
+
+                    <!-- PT-201 -->
+                    <line x1="940" y1="100" x2="940" y2="72" stroke="#7d8a99" stroke-width="1.5"/>
+                    <g transform="translate(940,58)">
+                        <circle r="18" cx="0" cy="0" class="balloon-circle" id="pt-201-circle"/>
+                        <line x1="-18" y1="0" x2="18" y2="0" class="balloon-divider"/>
+                        <text y="-5" class="balloon-text-top">PT</text>
+                        <text y="13" class="balloon-text-bot" id="pt-201-tag">201</text>
+                    </g>
+
+                    <!-- Centrifuges -->
+                    {% set cfs = [('A', 340, 'LEAD STAGE'), ('B', 540, 'THERMAL STAGE'), ('C', 740, 'DISCHARGE STAGE')] %}
+                    {% for letter, x, sub in cfs %}
+                    <g class="vessel" transform="translate({{ x }},200)">
+                        <path d="M 0 30 Q 0 0 30 0 L 90 0 Q 120 0 120 30 L 120 200 Q 120 230 90 230 L 30 230 Q 0 230 0 200 Z"
+                              class="vessel-shell"/>
+                        <line x1="60" y1="0" x2="60" y2="-30" class="pipe-line" stroke-width="4"/>
+                        <line x1="60" y1="230" x2="60" y2="260" class="pipe-line" stroke-width="4"/>
+                        <line x1="0" y1="180" x2="-30" y2="180" class="pipe-line coolant" stroke-width="3"/>
+                        <g transform="translate(60,115)">
+                            <circle r="42" fill="none" stroke="#2b3a4c" stroke-width="1"/>
+                            <g class="rotor-spinner" data-rotor>
+                                <line x1="-38" y1="0" x2="38" y2="0" class="equip-rotor" data-rotor-arm/>
+                                <line x1="0" y1="-38" x2="0" y2="38" class="equip-rotor" data-rotor-arm/>
+                                <circle r="6" fill="#1a2836" stroke="#7d8a99" stroke-width="1.2"/>
+                            </g>
+                        </g>
+                        <text x="60" y="250" class="vessel-tag">CF-301{{ letter }}</text>
+                        <text x="60" y="265" class="vessel-sub">{{ sub }}</text>
+                        <rect x="20" y="190" width="80" height="22" fill="#0a0f15" stroke="#2b3a4c" stroke-width="1"/>
+                        <text x="60" y="205" class="equip-value mono" data-vessel-rpm>---- RPM</text>
+                    </g>
+
+                    <g transform="translate({{ x + 150 }},240)">
+                        <line x1="-30" y1="0" x2="0" y2="0" stroke="#7d8a99" stroke-width="1.5"/>
+                        <circle r="18" cx="0" cy="0" class="balloon-circle" data-balloon-tt id="tt-301{{ letter|lower }}-circle"/>
+                        <line x1="-18" y1="0" x2="18" y2="0" class="balloon-divider"/>
+                        <text y="-5" class="balloon-text-top">TT</text>
+                        <text y="13" class="balloon-text-bot" id="tt-301{{ letter|lower }}-tag">301{{ letter }}</text>
+                    </g>
+                    <g transform="translate({{ x + 150 }},330)">
+                        <line x1="-30" y1="0" x2="0" y2="0" stroke="#7d8a99" stroke-width="1.5"/>
+                        <circle r="18" cx="0" cy="0" class="balloon-circle" data-balloon-vt id="vt-301{{ letter|lower }}-circle"/>
+                        <line x1="-18" y1="0" x2="18" y2="0" class="balloon-divider"/>
+                        <text y="-5" class="balloon-text-top">VT</text>
+                        <text y="13" class="balloon-text-bot" id="vt-301{{ letter|lower }}-tag">301{{ letter }}</text>
+                    </g>
+                    {% endfor %}
+
+                    <!-- Discharge header -->
+                    <line x1="400" y1="460" x2="400" y2="490" class="pipe-line"/>
+                    <line x1="600" y1="460" x2="600" y2="490" class="pipe-line"/>
+                    <line x1="800" y1="460" x2="800" y2="490" class="pipe-line"/>
+                    <line x1="380" y1="490" x2="1080" y2="490" class="pipe-line"/>
+
+                    <!-- Product tank -->
+                    <g transform="translate(1080,440)">
+                        <rect x="0" y="0" width="60" height="100" class="schem-tank"/>
+                        <rect x="0" y="0" width="60" height="0" class="schem-tank-fill" id="prod-tank-fill"/>
+                        <text x="30" y="-6" class="equip-label">PROD TK</text>
+                        <text x="30" y="118" class="equip-value mono" id="prod-tank-pct">-- %</text>
+                    </g>
+
+                    <!-- Coolant header -->
+                    <line x1="40" y1="568" x2="1160" y2="568" class="pipe-line coolant"/>
+                    <polygon points="40,564 30,568 40,572" class="pipe-arrow coolant"/>
+                    <line x1="280" y1="568" x2="280" y2="380" class="pipe-line coolant"/>
+                    <line x1="280" y1="380" x2="340" y2="380" class="pipe-line coolant"/>
+                    <line x1="480" y1="568" x2="480" y2="380" class="pipe-line coolant"/>
+                    <line x1="480" y1="380" x2="540" y2="380" class="pipe-line coolant"/>
+                    <line x1="680" y1="568" x2="680" y2="380" class="pipe-line coolant"/>
+                    <line x1="680" y1="380" x2="740" y2="380" class="pipe-line coolant"/>
+
+                    <!-- FT-401 -->
+                    <line x1="160" y1="568" x2="160" y2="536" stroke="#7d8a99" stroke-width="1.5"/>
+                    <g transform="translate(160,522)">
+                        <circle r="18" cx="0" cy="0" class="balloon-circle"/>
+                        <line x1="-18" y1="0" x2="18" y2="0" class="balloon-divider"/>
+                        <text y="-5" class="balloon-text-top">FT</text>
+                        <text y="13" class="balloon-text-bot" id="ft-401-tag">401</text>
+                    </g>
+
+                    <!-- TIC-301 master controller balloon + remote SP callout -->
+                    <g transform="translate(1080,158)">
+                        <circle r="22" cx="0" cy="0" class="balloon-circle" stroke-width="1.6" id="tic-301-circle"/>
+                        <line x1="-22" y1="0" x2="22" y2="0" class="balloon-divider"/>
+                        <text y="-5" class="balloon-text-top">TIC</text>
+                        <text y="14" class="balloon-text-bot" id="tic-301-tag">301</text>
+                    </g>
+                    <text x="1080" y="200" class="equip-label">CASCADE CTRL</text>
+
+                    <g transform="translate(1080,330)">
+                        <rect x="-58" y="-26" width="116" height="52" fill="#0a0f15" stroke="#2b3a4c" stroke-width="1"/>
+                        <text x="0" y="-12" class="equip-label" text-anchor="middle">REMOTE SP</text>
+                        <text x="0" y="2" class="equip-value" text-anchor="middle" id="schem-remote-sp">----- RPM</text>
+                        <text x="0" y="18" class="equip-label" text-anchor="middle" style="fill:#5b6a7d">MB HR20</text>
+                    </g>
+                </svg>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── Side panel ─────────────────────────────────────────── -->
+    <aside class="side-panel">
+        <section class="panel alarm-card">
+            <header class="panel-header">
+                <h2>Active Alarms</h2>
+                <span class="meta" id="alarm-count">0 ACTIVE</span>
+            </header>
+            <div class="panel-body" style="padding:0;">
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead><tr><th style="width:60px">Time</th><th style="width:30px">Pri</th><th>Tag</th><th>Description</th></tr></thead>
+                        <tbody id="alarm-tbody"></tbody>
+                    </table>
+                    <div id="alarm-empty" class="empty-state">— NO ACTIVE ALARMS —</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel tags-card">
+            <header class="panel-header">
+                <h2>Live Tags</h2>
+                <span class="meta">CF-301 GROUP</span>
+            </header>
+            <div class="panel-body" style="padding:0;">
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <tbody>
+                            <tr><td class="tag-id">SI-301.PV</td>    <td class="tag-val mono" id="t-rpm">--</td><td class="tag-unit">RPM</td><td class="tag-q" id="q-rpm">G</td></tr>
+                            <tr><td class="tag-id">TT-301A.PV</td>   <td class="tag-val mono" id="t-tt-a">--</td><td class="tag-unit">°C</td><td class="tag-q" id="q-tt-a">G</td></tr>
+                            <tr><td class="tag-id">TT-301B.PV</td>   <td class="tag-val mono" id="t-tt-b">--</td><td class="tag-unit">°C</td><td class="tag-q" id="q-tt-b">G</td></tr>
+                            <tr><td class="tag-id">TT-301C.PV</td>   <td class="tag-val mono" id="t-tt-c">--</td><td class="tag-unit">°C</td><td class="tag-q" id="q-tt-c">G</td></tr>
+                            <tr><td class="tag-id">TT-302.PV</td>    <td class="tag-val mono" id="t-bearing">--</td><td class="tag-unit">°C</td><td class="tag-q" id="q-bearing">G</td></tr>
+                            <tr><td class="tag-id">PT-201.PV</td>    <td class="tag-val mono" id="t-pressure">--</td><td class="tag-unit">kPa</td><td class="tag-q" id="q-pressure">G</td></tr>
+                            <tr><td class="tag-id">VT-301.PV</td>    <td class="tag-val mono" id="t-vibration">--</td><td class="tag-unit">mm/s</td><td class="tag-q" id="q-vibration">G</td></tr>
+                            <tr><td class="tag-id">FT-401.PV</td>    <td class="tag-val mono" id="t-coolant">--</td><td class="tag-unit">L/min</td><td class="tag-q" id="q-coolant">G</td></tr>
+                            <tr><td class="tag-id">JT-301.PV</td>    <td class="tag-val mono" id="t-power">--</td><td class="tag-unit">kW</td><td class="tag-q">G</td></tr>
+                            <tr><td class="tag-id">IT-301.PV</td>    <td class="tag-val mono" id="t-current">--</td><td class="tag-unit">A</td><td class="tag-q">G</td></tr>
+                            <tr><td class="tag-id">PT-202.PV</td>    <td class="tag-val mono" id="t-feedp">--</td><td class="tag-unit">kPa</td><td class="tag-q">G</td></tr>
+                            <tr><td class="tag-id">PT-203.PV</td>    <td class="tag-val mono" id="t-lubep">--</td><td class="tag-unit">kPa</td><td class="tag-q">G</td></tr>
+                            <tr><td class="tag-id">SI-301.SP</td>    <td class="tag-val mono" id="t-cmd-sp">--</td><td class="tag-unit">RPM</td><td class="tag-q">G</td></tr>
+                            <tr><td class="tag-id">SI-301.SP_R</td>  <td class="tag-val mono" id="t-rem-sp">--</td><td class="tag-unit">RPM</td><td class="tag-q">G</td></tr>
+                            <tr><td class="tag-id">XS-301.STAT</td>  <td class="tag-val mono" id="t-rotor">--</td><td class="tag-unit">—</td><td class="tag-q">G</td></tr>
+                            <tr><td class="tag-id">FCV-101.STAT</td> <td class="tag-val mono" id="t-feed">--</td><td class="tag-unit">—</td><td class="tag-q">G</td></tr>
+                            <tr><td class="tag-id">TIC-301.MODE</td> <td class="tag-val mono" id="t-mode">--</td><td class="tag-unit">—</td><td class="tag-q">G</td></tr>
+                            <tr><td class="tag-id">LT-101.PV</td>    <td class="tag-val mono" id="t-feedlvl">--</td><td class="tag-unit">%</td><td class="tag-q">G</td></tr>
+                            <tr><td class="tag-id">LT-102.PV</td>    <td class="tag-val mono" id="t-prodlvl">--</td><td class="tag-unit">%</td><td class="tag-q">G</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel trend-card">
+            <header class="panel-header">
+                <h2>Trend — TT-301A · SI-301.PV · SI-301.SP_R</h2>
+                <span class="meta" id="trend-window">WINDOW 240s</span>
+            </header>
+            <div class="panel-body">
+                <div class="trend-wrap">
+                    <div class="trend-svg-host">
+                        <svg id="trend-svg" viewBox="0 0 800 220" preserveAspectRatio="none">
+                            <g class="trend-grid" id="trend-grid"></g>
+                            <g class="trend-axis" id="trend-y-labels"></g>
+                            <g class="trend-axis" id="trend-x-labels"></g>
+                            <polyline id="trend-line-temp"     class="trend-line-temp"     points=""/>
+                            <polyline id="trend-line-rpm"      class="trend-line-rpm"      points=""/>
+                            <polyline id="trend-line-setpoint" class="trend-line-setpoint" points=""/>
+                        </svg>
+                    </div>
+                    <div class="trend-legend">
+                        <div class="legend-row" style="color:#ff8a4c"><span class="swatch" style="background:#ff8a4c"></span><span class="label">TT-301A °C</span><span class="val" id="legend-temp">--</span></div>
+                        <div class="legend-row" style="color:var(--accent)"><span class="swatch" style="background:var(--accent)"></span><span class="label">SI-301.PV</span><span class="val" id="legend-rpm">--</span></div>
+                        <div class="legend-row dashed" style="color:#b079e0"><span class="swatch" style="background:#b079e0"></span><span class="label">SI-301.SP_R</span><span class="val" id="legend-sp">--</span></div>
+                        <div class="legend-row" style="color:var(--ok)"><span class="swatch" style="background:var(--ok)"></span><span class="label">Safe band</span><span class="val">7800–9200</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </aside>
+
+    <!-- ─── Controls ──────────────────────────────────────────── -->
+    <section class="panel control-panel">
+        <header class="panel-header">
+            <h2>Operator Controls</h2>
+            <span class="meta">PRIVILEGE: {{ user.role|upper }} · INTERLOCKS ACTIVE</span>
+        </header>
+        <div class="panel-body">
+            <div class="control-grid">
+                <div class="control-block">
+                    <div class="ctrl-title"><span>Rotor Train</span><span class="ctrl-tag">XS-301</span></div>
+                    <div class="ctrl-state" id="ctrl-rotor">STOPPED</div>
+                    <div class="btn-row">
+                        <button class="hmi-btn start" id="start-rotor">Start</button>
+                        <button class="hmi-btn stop"  id="stop-rotor">Stop</button>
+                    </div>
+                </div>
+                <div class="control-block">
+                    <div class="ctrl-title"><span>Feed Valve</span><span class="ctrl-tag">FCV-101</span></div>
+                    <div class="ctrl-state" id="ctrl-feed">CLOSED</div>
+                    <div class="btn-row">
+                        <button class="hmi-btn start" id="start-feed">Open</button>
+                        <button class="hmi-btn stop"  id="stop-feed">Close</button>
+                    </div>
+                </div>
+                <div class="control-block">
+                    <div class="ctrl-title"><span>Coolant Override</span><span class="ctrl-tag">FIC-401</span></div>
+                    <div class="ctrl-state" id="ctrl-coolant">AUTO</div>
+                    <div class="btn-row">
+                        <button class="hmi-btn warn" id="enable-coolant">Boost</button>
+                        <button class="hmi-btn stop" id="disable-coolant">Auto</button>
+                    </div>
+                </div>
+                <div class="control-block">
+                    <div class="ctrl-title"><span>Trip Latch</span><span class="ctrl-tag">XA-301</span></div>
+                    <div class="ctrl-state" id="ctrl-trip">CLEAR</div>
+                    <div class="btn-row">
+                        <button class="hmi-btn stop" id="reset-trip">Reset</button>
+                        <button class="hmi-btn trip" id="manual-trip">E-Stop</button>
+                    </div>
+                </div>
+
+                <div class="setpoint-block">
+                    <div class="setpoint-head">
+                        <div class="lhs">
+                            SPEED SETPOINT
+                            <span class="tag">SI-301.SP</span>
+                            <span class="reg">SOURCE: HMI · REMOTE WRITE: MODBUS HR20</span>
+                        </div>
+                        <div class="rhs"><span id="sp-value">8600</span><span class="unit">RPM</span></div>
+                    </div>
+                    <div class="setpoint-band" id="sp-band">
+                        <div class="tick" style="left:18%"></div>
+                        <div class="tick" style="left:30%"></div>
+                        <div class="tick" style="left:70%"></div>
+                        <div class="tick" style="left:82%"></div>
+                        <div class="pv-marker" id="pv-marker" style="left:0%"><span class="legend">PV</span></div>
+                        <div class="sp-marker" id="sp-marker" style="left:0%"><span class="legend">SP</span></div>
+                    </div>
+                    <input type="range" id="sp-slider" min="7200" max="9800" step="50" value="8600">
+                    <div class="setpoint-foot">
+                        <div class="item"><span class="l">Low Trip</span><span class="v alarm">7400</span></div>
+                        <div class="item"><span class="l">Safe Band</span><span class="v ok">7800–9200</span></div>
+                        <div class="item"><span class="l">High Trip</span><span class="v alarm">9600</span></div>
+                        <div class="item"><span class="l">Thermal Trip</span><span class="v alarm">92.0 °C</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const E = {
+        ctrlRotor: document.getElementById('ctrl-rotor'),
+        ctrlFeed: document.getElementById('ctrl-feed'),
+        ctrlCoolant: document.getElementById('ctrl-coolant'),
+        ctrlTrip: document.getElementById('ctrl-trip'),
+        spValue: document.getElementById('sp-value'),
+        spSlider: document.getElementById('sp-slider'),
+        pvMarker: document.getElementById('pv-marker'),
+        spMarker: document.getElementById('sp-marker'),
+        tRpm: document.getElementById('t-rpm'),
+        tTtA: document.getElementById('t-tt-a'),
+        tTtB: document.getElementById('t-tt-b'),
+        tTtC: document.getElementById('t-tt-c'),
+        tBearing: document.getElementById('t-bearing'),
+        tPressure: document.getElementById('t-pressure'),
+        tVibration: document.getElementById('t-vibration'),
+        tCoolant: document.getElementById('t-coolant'),
+        tPower: document.getElementById('t-power'),
+        tCurrent: document.getElementById('t-current'),
+        tFeedp: document.getElementById('t-feedp'),
+        tLubep: document.getElementById('t-lubep'),
+        tFeedLvl: document.getElementById('t-feedlvl'),
+        tProdLvl: document.getElementById('t-prodlvl'),
+        tCmdSp: document.getElementById('t-cmd-sp'),
+        tRemSp: document.getElementById('t-rem-sp'),
+        tRotor: document.getElementById('t-rotor'),
+        tFeed: document.getElementById('t-feed'),
+        tMode: document.getElementById('t-mode'),
+        qRpm: document.getElementById('q-rpm'),
+        qTtA: document.getElementById('q-tt-a'),
+        qTtB: document.getElementById('q-tt-b'),
+        qTtC: document.getElementById('q-tt-c'),
+        qBearing: document.getElementById('q-bearing'),
+        qPressure: document.getElementById('q-pressure'),
+        qVibration: document.getElementById('q-vibration'),
+        qCoolant: document.getElementById('q-coolant'),
+        alarmTbody: document.getElementById('alarm-tbody'),
+        alarmEmpty: document.getElementById('alarm-empty'),
+        alarmCount: document.getElementById('alarm-count'),
+        schemRemoteSp: document.getElementById('schem-remote-sp'),
+        feedTankFill: document.getElementById('feed-tank-fill'),
+        feedTankPct: document.getElementById('feed-tank-pct'),
+        prodTankFill: document.getElementById('prod-tank-fill'),
+        prodTankPct: document.getElementById('prod-tank-pct'),
+        vesselRpms: Array.from(document.querySelectorAll('[data-vessel-rpm]')),
+        rotors: Array.from(document.querySelectorAll('[data-rotor]')),
+        rotorArms: Array.from(document.querySelectorAll('[data-rotor-arm]')),
+        ttBalloons: Array.from(document.querySelectorAll('[data-balloon-tt]')),
+        vtBalloons: Array.from(document.querySelectorAll('[data-balloon-vt]')),
+        fcv101l: document.getElementById('fcv-101-l'),
+        fcv101r: document.getElementById('fcv-101-r'),
+        trendGrid: document.getElementById('trend-grid'),
+        trendYLabels: document.getElementById('trend-y-labels'),
+        trendXLabels: document.getElementById('trend-x-labels'),
+        tlTemp: document.getElementById('trend-line-temp'),
+        tlRpm: document.getElementById('trend-line-rpm'),
+        tlSp: document.getElementById('trend-line-setpoint'),
+        legendTemp: document.getElementById('legend-temp'),
+        legendRpm: document.getElementById('legend-rpm'),
+        legendSp: document.getElementById('legend-sp'),
+        trendWindow: document.getElementById('trend-window'),
+    };
+
+    // ─── Trend grid ────────────────────────────────────────────
+    (function buildGrid() {
+        const W = 800, H = 220, padT = 4, padB = 14;
+        const innerH = H - padT - padB;
+        for (let i = 0; i <= 4; i++) {
+            const y = padT + (innerH * i) / 4;
+            const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            ln.setAttribute('x1', 0); ln.setAttribute('x2', W);
+            ln.setAttribute('y1', y); ln.setAttribute('y2', y);
+            E.trendGrid.appendChild(ln);
+        }
+        for (let i = 0; i <= 8; i++) {
+            const x = (W * i) / 8;
+            const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            ln.setAttribute('x1', x); ln.setAttribute('x2', x);
+            ln.setAttribute('y1', padT); ln.setAttribute('y2', H - padB);
+            E.trendGrid.appendChild(ln);
+        }
+        [100, 75, 50, 25, 0].forEach((v, i) => {
+            const y = padT + (innerH * i) / 4;
+            const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            t.setAttribute('x', 4); t.setAttribute('y', y + 4);
+            t.textContent = v + '°';
+            E.trendYLabels.appendChild(t);
+        });
+        ['-240s','-180s','-120s','-60s','now'].forEach((v, i) => {
+            const x = (W * i) / 4;
+            const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            t.setAttribute('x', i === 0 ? x + 4 : i === 4 ? x - 4 : x);
+            t.setAttribute('y', H - 2);
+            t.setAttribute('text-anchor', i === 0 ? 'start' : i === 4 ? 'end' : 'middle');
+            t.textContent = v;
+            E.trendXLabels.appendChild(t);
+        });
+    })();
+
+    // ─── Commands ──────────────────────────────────────────────
+    const cmd = (path, body) => ScadaApi.command(path, body || {});
+    document.getElementById('start-rotor').addEventListener('click', () => cmd('/api/command/rotor', { enabled: true }));
+    document.getElementById('stop-rotor').addEventListener('click', () => cmd('/api/command/rotor', { enabled: false }));
+    document.getElementById('start-feed').addEventListener('click', () => cmd('/api/command/feed', { enabled: true }));
+    document.getElementById('stop-feed').addEventListener('click', () => cmd('/api/command/feed', { enabled: false }));
+    document.getElementById('enable-coolant').addEventListener('click', () => cmd('/api/command/coolant-override', { enabled: true }));
+    document.getElementById('disable-coolant').addEventListener('click', () => cmd('/api/command/coolant-override', { enabled: false }));
+    document.getElementById('manual-trip').addEventListener('click', () => cmd('/api/command/trip'));
+    document.getElementById('reset-trip').addEventListener('click', () => cmd('/api/command/reset-trip'));
+
+    const SP_MIN = 7200, SP_MAX = 9800;
+    const spPercent = (rpm) => Math.max(0, Math.min(100, ((rpm - SP_MIN) / (SP_MAX - SP_MIN)) * 100));
+    E.spSlider.addEventListener('input', () => {
+        E.spValue.textContent = E.spSlider.value;
+        E.spMarker.style.left = spPercent(Number(E.spSlider.value)) + '%';
+    });
+    E.spSlider.addEventListener('change', () => {
+        ScadaApi.command('/api/command/remote-setpoint', { rpm: Number(E.spSlider.value) });
+    });
+
+    // ─── Threshold helpers ─────────────────────────────────────
+    const thresholds = {
+        rpm:        { warnLo: 7800, warnHi: 9200, alarmLo: 7400, alarmHi: 9600 },
+        chamberC:   { warnHi: 78, alarmHi: 92 },
+        bearingC:   { warnHi: 80, alarmHi: 96 },
+        pressureK:  { warnHi: 146, alarmHi: 165 },
+        vibration:  { warnHi: 4.8, alarmHi: 6.6 },
+    };
+    const classify = (v, t) => {
+        if (v == null || isNaN(v)) return 'ok';
+        if ((t.alarmLo != null && v <= t.alarmLo) || (t.alarmHi != null && v >= t.alarmHi)) return 'alarm';
+        if ((t.warnLo  != null && v <= t.warnLo)  || (t.warnHi  != null && v >= t.warnHi))  return 'warn';
+        return 'ok';
+    };
+    const setQuality = (el, level) => { if (!el) return; el.className = 'tag-q' + (level === 'alarm' ? ' bad' : ''); el.textContent = level === 'alarm' ? 'B' : 'G'; };
+    const setVal = (el, level) => { if (!el) return; el.classList.remove('alarm', 'warn'); if (level === 'alarm') el.classList.add('alarm'); else if (level === 'warn') el.classList.add('warn'); };
+    const setBalloon = (el, level) => { if (!el) return; el.classList.remove('alarm', 'warn'); if (level === 'alarm') el.classList.add('alarm'); else if (level === 'warn') el.classList.add('warn'); };
+
+    // ─── Build alarms from state ───────────────────────────────
+    const buildAlarms = (s) => {
+        const out = [];
+        const t = new Date().toISOString().substring(11, 19);
+        const push = (pri, tag, desc) => out.push({ ts: t, pri, tag, desc });
+        if (s.emergency_trip) push(1, 'XA-301', 'EMERGENCY TRIP LATCHED');
+        if (s.chamber_temp_c >= 92) push(1, 'TT-301A', 'PROCESS TEMP HIGH-HIGH');
+        else if (s.chamber_temp_c >= 78) push(2, 'TT-301A', 'PROCESS TEMP HIGH');
+        if (s.bearing_temp_c >= 96) push(1, 'TT-302', 'BEARING TEMP HIGH-HIGH');
+        else if (s.bearing_temp_c >= 80) push(2, 'TT-302', 'BEARING TEMP HIGH');
+        if (s.vibration_mm_s >= 6.6) push(1, 'VT-301', 'VIBRATION HIGH-HIGH');
+        else if (s.vibration_mm_s >= 4.8) push(2, 'VT-301', 'VIBRATION HIGH');
+        if (s.pressure_kpa >= 165) push(1, 'PT-201', 'HEADER PRESSURE HIGH-HIGH');
+        else if (s.pressure_kpa >= 146) push(2, 'PT-201', 'HEADER PRESSURE HIGH');
+        if (s.rpm >= 9600) push(1, 'SI-301', 'OVERSPEED');
+        else if (s.rpm >= 9200) push(2, 'SI-301', 'SPEED HIGH');
+        if (s.control_mode === 'FIELD OVERRIDE') push(2, 'TIC-301', 'CASCADE BYPASSED — FIELD SP ACTIVE');
+        if (s.alarm_level === 'warning' && out.length === 0) push(3, 'CF-301', s.alarm_text || 'WARNING');
+        return out;
+    };
+
+    const renderAlarms = (alarms) => {
+        E.alarmTbody.innerHTML = '';
+        if (alarms.length === 0) {
+            E.alarmEmpty.style.display = '';
+            E.alarmCount.textContent = '0 ACTIVE';
+            return;
+        }
+        E.alarmEmpty.style.display = 'none';
+        alarms.sort((a, b) => a.pri - b.pri);
+        E.alarmTbody.innerHTML = alarms.map(a => `
+            <tr class="unack">
+                <td>${a.ts}</td>
+                <td class="pri-${a.pri}">${a.pri}</td>
+                <td>${a.tag}</td>
+                <td>${a.desc}</td>
+            </tr>`).join('');
+        E.alarmCount.textContent = `${alarms.length} ACTIVE`;
+    };
+
+    // ─── Trend rendering ───────────────────────────────────────
+    const renderTrend = (items) => {
+        if (!items || !items.length) {
+            E.tlTemp.setAttribute('points', '');
+            E.tlRpm.setAttribute('points', '');
+            E.tlSp.setAttribute('points', '');
+            return;
+        }
+        const W = 800, H = 220, padT = 4, padB = 14;
+        const innerH = H - padT - padB;
+        const fmt = (key, max) => items.map((it, i) => {
+            const x = (i / Math.max(items.length - 1, 1)) * W;
+            const y = padT + innerH - Math.min(Math.max(it[key] || 0, 0) / max, 1) * innerH;
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' ');
+        E.tlTemp.setAttribute('points', fmt('chamber_temp_c', 100));
+        E.tlRpm.setAttribute('points', fmt('rpm', 14000));
+        E.tlSp.setAttribute('points', fmt('remote_rpm_setpoint', 14000));
+        const last = items[items.length - 1];
+        E.legendTemp.textContent = ScadaApi.fmtNum(last.chamber_temp_c, 1) + ' °C';
+        E.legendRpm.textContent  = ScadaApi.fmtInt(last.rpm) + ' RPM';
+        E.legendSp.textContent   = (last.remote_rpm_setpoint > 0 ? ScadaApi.fmtInt(last.remote_rpm_setpoint) + ' RPM' : 'OFF');
+        E.trendWindow.textContent = `WINDOW ${items.length * 2}s · ${items.length} SAMPLES`;
+    };
+
+    // ─── Main state render ─────────────────────────────────────
+    const renderState = (s) => {
+        const rpmLevel = classify(s.rpm, thresholds.rpm);
+        E.tRpm.textContent = ScadaApi.fmtInt(s.rpm); setVal(E.tRpm, rpmLevel); setQuality(E.qRpm, rpmLevel);
+
+        const tA = s.chamber_temp_c;
+        const tB = (s.chamber_b_temp_c != null) ? s.chamber_b_temp_c : tA - 0.6;
+        const tC = (s.chamber_c_temp_c != null) ? s.chamber_c_temp_c : tA - 1.4;
+        const stages = [tA, tB, tC];
+        E.tTtA.textContent = ScadaApi.fmtNum(tA, 1);
+        E.tTtB.textContent = ScadaApi.fmtNum(tB, 1);
+        E.tTtC.textContent = ScadaApi.fmtNum(tC, 1);
+        [E.tTtA, E.tTtB, E.tTtC].forEach((el, i) => setVal(el, classify(stages[i], thresholds.chamberC)));
+        [E.qTtA, E.qTtB, E.qTtC].forEach((el, i) => setQuality(el, classify(stages[i], thresholds.chamberC)));
+
+        const bearingLevel = classify(s.bearing_temp_c, thresholds.bearingC);
+        E.tBearing.textContent = ScadaApi.fmtNum(s.bearing_temp_c, 1); setVal(E.tBearing, bearingLevel); setQuality(E.qBearing, bearingLevel);
+        const pressureLevel = classify(s.pressure_kpa, thresholds.pressureK);
+        E.tPressure.textContent = ScadaApi.fmtNum(s.pressure_kpa, 1); setVal(E.tPressure, pressureLevel); setQuality(E.qPressure, pressureLevel);
+        const vibLevel = classify(s.vibration_mm_s, thresholds.vibration);
+        E.tVibration.textContent = ScadaApi.fmtNum(s.vibration_mm_s, 2); setVal(E.tVibration, vibLevel); setQuality(E.qVibration, vibLevel);
+
+        E.tCoolant.textContent  = ScadaApi.fmtNum(s.coolant_flow_lpm, 1);
+        E.tPower.textContent    = ScadaApi.fmtNum(s.power_kw, 1);
+        E.tCurrent.textContent  = ScadaApi.fmtNum(s.motor_current_a, 1);
+        E.tFeedp.textContent    = ScadaApi.fmtNum(s.feed_pressure_kpa, 1);
+        E.tLubep.textContent    = ScadaApi.fmtNum(s.lube_pressure_kpa, 0);
+        E.tFeedLvl.textContent  = ScadaApi.fmtNum(s.feed_tank_level_pct, 1);
+        E.tProdLvl.textContent  = ScadaApi.fmtNum(s.product_tank_level_pct, 1);
+        E.tCmdSp.textContent    = ScadaApi.fmtInt(s.commanded_rpm || s.rpm_setpoint);
+        E.tRemSp.textContent    = s.remote_rpm_setpoint > 0 ? ScadaApi.fmtInt(s.remote_rpm_setpoint) : '—';
+        E.tRotor.textContent    = s.rotor_enabled ? (s.emergency_trip ? 'TRIPPED' : 'RUN') : 'STOP';
+        E.tFeed.textContent     = s.feed_enabled ? 'OPEN' : 'CLOSED';
+        E.tMode.textContent     = s.control_mode;
+
+        E.ctrlRotor.textContent   = s.rotor_enabled ? (s.emergency_trip ? 'TRIPPED' : 'RUNNING') : 'STOPPED';
+        E.ctrlFeed.textContent    = s.feed_enabled ? 'OPEN' : 'CLOSED';
+        E.ctrlCoolant.textContent = s.coolant_override ? 'MANUAL BOOST' : 'AUTO';
+        E.ctrlTrip.textContent    = s.emergency_trip ? 'LATCHED' : 'CLEAR';
+
+        E.vesselRpms.forEach(node => { node.textContent = ScadaApi.fmtInt(s.rpm) + ' RPM'; setVal(node, rpmLevel); });
+        E.schemRemoteSp.textContent = (s.remote_rpm_setpoint > 0 ? ScadaApi.fmtInt(s.remote_rpm_setpoint) : '-----') + ' RPM';
+
+        E.ttBalloons.forEach((b, i) => {
+            const lvl = classify(stages[i], thresholds.chamberC);
+            setBalloon(b, lvl);
+            const tagBot = document.getElementById('tt-301' + 'abc'[i] + '-tag');
+            if (tagBot) {
+                tagBot.textContent = '301' + 'ABC'[i];
+                tagBot.classList.remove('alarm', 'warn');
+                if (lvl === 'alarm') tagBot.classList.add('alarm');
+                else if (lvl === 'warn') tagBot.classList.add('warn');
+            }
+        });
+        E.vtBalloons.forEach(b => setBalloon(b, vibLevel));
+
+        E.fcv101l.classList.toggle('open', s.feed_enabled);
+        E.fcv101l.classList.toggle('closed', !s.feed_enabled);
+        E.fcv101r.classList.toggle('open', s.feed_enabled);
+        E.fcv101r.classList.toggle('closed', !s.feed_enabled);
+
+        const rpm = Number(s.rpm) || 0;
+        const period = rpm > 60 ? Math.max(0.18, 240 / Math.max(rpm, 1)).toFixed(2) + 's' : '6s';
+        E.rotors.forEach((rotor, i) => {
+            rotor.style.setProperty('--rotor-period', period);
+            rotor.style.animationDelay = `${i * 0.07}s`;
+            rotor.classList.toggle('running', s.rotor_enabled && !s.emergency_trip);
+        });
+        E.rotorArms.forEach(arm => {
+            arm.classList.remove('running', 'tripped');
+            if (s.emergency_trip) arm.classList.add('tripped');
+            else if (s.rotor_enabled) arm.classList.add('running');
+        });
+
+        E.pvMarker.style.left = spPercent(s.rpm) + '%';
+        if (s.remote_rpm_setpoint > 0) {
+            E.spMarker.style.left = spPercent(s.remote_rpm_setpoint) + '%';
+            E.spMarker.style.display = '';
+            if (document.activeElement !== E.spSlider) {
+                E.spSlider.value = String(Math.round(s.remote_rpm_setpoint / 50) * 50);
+                E.spValue.textContent = E.spSlider.value;
+            }
+        } else {
+            E.spMarker.style.display = 'none';
+        }
+
+        // Tank fill
+        if (E.feedTankFill && s.feed_tank_level_pct != null) {
+            const h = Math.max(0, Math.min(120, (s.feed_tank_level_pct / 100) * 120));
+            E.feedTankFill.setAttribute('height', h);
+            E.feedTankFill.setAttribute('y', 120 - h);
+            E.feedTankPct.textContent = ScadaApi.fmtNum(s.feed_tank_level_pct, 0) + ' %';
+        }
+        if (E.prodTankFill && s.product_tank_level_pct != null) {
+            const h = Math.max(0, Math.min(100, (s.product_tank_level_pct / 100) * 100));
+            E.prodTankFill.setAttribute('height', h);
+            E.prodTankFill.setAttribute('y', 100 - h);
+            E.prodTankPct.textContent = ScadaApi.fmtNum(s.product_tank_level_pct, 0) + ' %';
+        }
+
+        renderAlarms(buildAlarms(s));
+    };
+
+    // Hook into shared event bus
+    window.addEventListener('scada:state', (ev) => renderState(ev.detail));
+
+    // History fetch (for trend) — independent cadence
+    const fetchHistory = async () => {
+        try {
+            const h = await ScadaApi.fetchJson('/api/history?limit=120');
+            renderTrend(h.items || []);
+        } catch (e) {
+            console.warn('history fetch failed', e);
+        }
+    };
+    fetchHistory();
+    setInterval(fetchHistory, 4000);
+
+    // ─── Sub-view switching (hash-based) ───────────────────────
+    const applySub = () => {
+        const hash = (location.hash || '#overview').replace('#', '');
+        const valid = ['overview', 'trends', 'setpoints'];
+        const sub = valid.includes(hash) ? hash : 'overview';
+        document.body.classList.remove('sub-overview', 'sub-trends', 'sub-setpoints');
+        document.body.classList.add('sub-' + sub);
+        document.querySelectorAll('.subtab').forEach(el => {
+            el.classList.toggle('active', el.dataset.sub === sub);
+        });
+        // Active top tab for first three is always 'Overview' but visually highlight matching sub
+        document.querySelectorAll('.tabs .tab').forEach((tab, idx) => {
+            if (idx < 3) {
+                const sublabel = ['overview', 'trends', 'setpoints'][idx];
+                tab.classList.toggle('active', sublabel === sub);
+            }
+        });
+    };
+    window.addEventListener('hashchange', applySub);
+    applySub();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,149 @@
+{% extends "_layout.html" %}
+{% set page_title = "System Diagnostics" %}
+
+{% block head %}
+<style>
+    .diag-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+        grid-template-rows: auto 1fr;
+        gap: 6px;
+        height: 100%;
+        min-height: 0;
+    }
+    .diag-grid .summary { grid-column: 1 / span 2; grid-row: 1; }
+    .diag-grid .reg-panel { grid-column: 1; grid-row: 2; }
+    .diag-grid .info-panel { grid-column: 2; grid-row: 2; }
+    .diag-summary {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 6px;
+        padding: 10px;
+    }
+    .diag-summary .stat {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        padding: 8px 10px;
+    }
+    .diag-summary .stat .label { color: var(--label); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
+    .diag-summary .stat .val { font-family: "Consolas", monospace; font-size: 14px; color: var(--value); }
+    .diag-summary .stat .val.ok { color: var(--ok); }
+    .diag-summary .stat .val.bad { color: var(--alarm); }
+    pre.json-blob {
+        margin: 0;
+        padding: 10px;
+        font-family: "Consolas", monospace;
+        font-size: 11px;
+        color: var(--text);
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="diag-grid">
+    <section class="panel summary">
+        <header class="panel-header">
+            <h2>System Status</h2>
+            <span class="meta" id="diag-stamp">--</span>
+        </header>
+        <div class="diag-summary">
+            <div class="stat"><div class="label">Service</div><div class="val">scada-hmi</div></div>
+            <div class="stat"><div class="label">Bridge</div><div class="val" id="s-bridge">--</div></div>
+            <div class="stat"><div class="label">Modbus</div><div class="val" id="s-modbus">--</div></div>
+            <div class="stat"><div class="label">Modbus Host</div><div class="val" id="s-mb-host">--</div></div>
+            <div class="stat"><div class="label">Poll</div><div class="val" id="s-poll">--</div></div>
+            <div class="stat"><div class="label">Hist · Events</div><div class="val" id="s-limits">--</div></div>
+        </div>
+    </section>
+
+    <section class="panel reg-panel">
+        <header class="panel-header">
+            <h2>Modbus Register Map</h2>
+            <span class="meta">Holding Registers · live snapshot</span>
+        </header>
+        <div class="panel-body" style="padding:0;">
+            <div class="tbl-wrap">
+                <table class="tbl">
+                    <thead>
+                        <tr><th style="width:60px">Reg</th><th style="width:80px">Type</th><th>Description</th><th style="width:90px" class="num">Value</th></tr>
+                    </thead>
+                    <tbody id="reg-tbody"></tbody>
+                </table>
+                <div id="reg-empty" class="empty-state">Loading register map…</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel info-panel">
+        <header class="panel-header">
+            <h2>Raw Diagnostics JSON</h2>
+            <span class="meta">/api/diagnostics</span>
+        </header>
+        <div class="panel-body scrollable">
+            <pre class="json-blob" id="diag-json">Loading…</pre>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const tbody = document.getElementById('reg-tbody');
+    const empty = document.getElementById('reg-empty');
+    const blob  = document.getElementById('diag-json');
+    const stamp = document.getElementById('diag-stamp');
+
+    const refresh = async () => {
+        try {
+            const d = await ScadaApi.fetchJson('/api/diagnostics');
+            blob.textContent = JSON.stringify(d, null, 2);
+
+            const sBridge = document.getElementById('s-bridge');
+            const sMod    = document.getElementById('s-modbus');
+            sBridge.textContent = 'OK';
+            sBridge.classList.add('ok');
+            const mb = d.modbus || {};
+            sMod.textContent = mb.connected ? 'CONNECTED' : 'OFFLINE';
+            sMod.classList.toggle('ok', !!mb.connected);
+            sMod.classList.toggle('bad', !mb.connected);
+            document.getElementById('s-mb-host').textContent = (mb.host || '?') + ':' + (mb.port || '?');
+            document.getElementById('s-poll').textContent = d.poll_seconds + 's';
+            document.getElementById('s-limits').textContent = (d.history_limit || '?') + ' · ' + (d.event_limit || '?');
+            stamp.textContent = new Date().toLocaleTimeString();
+
+            const map = d.modbus_register_map || {};
+            const regs = mb.holding_registers || [];
+            const coils = mb.coils || [];
+            const rows = [];
+            for (let i = 0; i < 32; i++) {
+                const key = 'HR' + i;
+                if (map[key]) {
+                    rows.push(`<tr><td>${key}</td><td><span style="color:var(--accent)">HR</span></td><td>${map[key]}</td><td class="num">${regs[i] != null ? regs[i] : '—'}</td></tr>`);
+                }
+            }
+            for (let i = 0; i < 4; i++) {
+                const key = 'CO' + i;
+                if (map[key]) {
+                    rows.push(`<tr><td>${key}</td><td><span style="color:var(--warn)">CO</span></td><td>${map[key]}</td><td class="num">${coils[i] === true ? '1' : '0'}</td></tr>`);
+                }
+            }
+            if (rows.length === 0) {
+                empty.style.display = '';
+                tbody.innerHTML = '';
+            } else {
+                empty.style.display = 'none';
+                tbody.innerHTML = rows.join('');
+            }
+        } catch (e) {
+            blob.textContent = 'Diagnostics fetch failed: ' + e.message;
+        }
+    };
+
+    refresh();
+    setInterval(refresh, 3000);
+})();
+</script>
+{% endblock %}

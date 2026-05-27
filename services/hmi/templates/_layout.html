@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ site_name }} — {{ page_title|default("CF-301 SCADA HMI") }}</title>
+    <link rel="stylesheet" href="/static/css/scada.css">
+    {% block head %}{% endblock %}
+</head>
+<body class="{% if user and user.role == 'viewer' %}role-viewer{% else %}role-operator{% endif %}{% block body_class %}{% endblock %}">
+    <div class="app">
+        <header class="sysbar">
+            <div class="brand">
+                <span class="mark"></span>
+                <span>SCADA · {{ site_name|upper }}</span>
+            </div>
+            <div class="plant">CASCADE THERMAL SEPARATION · UNIT 301 · OPERATOR WORKSTATION</div>
+            <div class="meta">
+                <div class="field"><label>Op</label><span class="v">{{ (user.username if user else "—")|upper }}</span></div>
+                <div class="field"><label>Stn</label><span class="v">HMI-WS-01</span></div>
+                <div class="field"><label>UTC</label><span class="v" id="sys-utc">--:--:--</span></div>
+                <span class="link-pill" id="link-plc"><span class="dot"></span>PLC</span>
+                <span class="link-pill" id="link-bridge"><span class="dot"></span>BRIDGE</span>
+                <div class="field"><label>Seq</label><span class="v" id="sys-seq">000000</span></div>
+                {% if user %}
+                <a class="user-pill{% if user.role == 'viewer' %} viewer{% endif %}" href="/logout" title="Sign out">
+                    {{ user.username }} · <span class="role">{{ user.role|upper }}</span>
+                </a>
+                {% endif %}
+            </div>
+        </header>
+
+        <nav class="tabs">
+            <a class="tab{% if active_tab == 'overview' %} active{% endif %}"    href="/#overview">Overview</a>
+            <a class="tab{% if active_tab == 'overview' %} active{% endif %}"    href="/#trends" style="border-left:0;">Trends</a>
+            <a class="tab{% if active_tab == 'overview' %} active{% endif %}"    href="/#setpoints" style="border-left:0;">Setpoints</a>
+            <a class="tab{% if active_tab == 'alarms' %} active{% endif %}"      href="/alarms">Alarms</a>
+            <a class="tab{% if active_tab == 'events' %} active{% endif %}"      href="/events">Events</a>
+            <a class="tab{% if active_tab == 'diagnostics' %} active{% endif %}" href="/diagnostics">Diagnostics</a>
+        </nav>
+
+        <div class="alarm-banner" id="alarm-banner">
+            <span class="pri" id="alarm-banner-pri">NORMAL</span>
+            <span id="alarm-banner-text">Loading…</span>
+            <span class="ack-bar" id="alarm-banner-ack"></span>
+        </div>
+
+        <main class="content">
+            {% block content %}{% endblock %}
+        </main>
+
+        <footer class="statusbar">
+            <div class="item"><label>Batch</label>      <span class="v" id="sb-batch">--</span></div>
+            <div class="item"><label>Mode</label>       <span class="v" id="sb-mode">--</span></div>
+            <div class="item"><label>Alarm</label>      <span class="v" id="sb-alarm">--</span></div>
+            <div class="item"><label>Last Update</label><span class="v" id="sb-update">--</span></div>
+            <div class="item"><label>Site</label>       <span class="v">{{ scada_domain }}</span></div>
+        </footer>
+    </div>
+
+    <script src="/static/js/scada.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

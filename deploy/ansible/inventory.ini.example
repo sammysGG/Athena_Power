@@ -1,0 +1,12 @@
+; Inventory for the SCADA range target.
+;
+; Replace 10.20.30.40 with the target's IP/hostname on the range network.
+; Replace `range` with the local user that has sudo on the target.
+
+[scada_range]
+range-scada-01 ansible_host=10.20.30.40
+
+[scada_range:vars]
+ansible_user=range
+ansible_become=true
+ansible_python_interpreter=/usr/bin/python3

@@ -1,0 +1,155 @@
+{% extends "_layout.html" %}
+{% set page_title = "Sequence of Events" %}
+
+{% block head %}
+<style>
+    .events-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+        height: 100%;
+        min-height: 0;
+    }
+    .ev-filter {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 12px;
+        background: var(--bg-2);
+        border-bottom: 1px solid var(--line-2);
+        font-family: "Consolas", monospace;
+        font-size: 11px;
+    }
+    .ev-filter .pill {
+        padding: 3px 9px;
+        border: 1px solid var(--line-2);
+        background: var(--bg-1);
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 10px;
+        cursor: pointer;
+    }
+    .ev-filter .pill.active { background: var(--accent); color: #06141d; border-color: var(--accent); }
+    .ev-filter .pill.alarm.active { background: var(--alarm); border-color: var(--alarm); color: #fff0f0; }
+    .ev-filter .pill.warn.active  { background: var(--warn);  border-color: var(--warn);  color: #1a1303; }
+    .ev-filter .search {
+        flex: 0 0 200px;
+        background: var(--panel-3);
+        border: 1px solid var(--line-2);
+        color: var(--value);
+        padding: 4px 8px;
+        font-family: "Consolas", monospace;
+        font-size: 11px;
+    }
+    .ev-filter .search:focus { outline: none; border-color: var(--accent); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="events-grid">
+    <section class="panel">
+        <header class="panel-header">
+            <h2>Sequence of Events</h2>
+            <span class="meta" id="events-meta">— events</span>
+        </header>
+        <div class="ev-filter">
+            <span class="pill active" data-filter="all">All</span>
+            <span class="pill alarm" data-filter="alarm">Alarm</span>
+            <span class="pill warn"  data-filter="warn">Warn</span>
+            <span class="pill"        data-filter="info">Info</span>
+            <span style="flex:1"></span>
+            <span style="color:var(--label)">Search</span>
+            <input class="search" id="ev-search" placeholder="tag, message…">
+            <button class="hmi-btn" id="ev-refresh">Refresh</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+            <div class="tbl-wrap">
+                <table class="tbl">
+                    <thead>
+                        <tr>
+                            <th style="width:160px">Timestamp</th>
+                            <th style="width:60px">Sev</th>
+                            <th style="width:80px">Source</th>
+                            <th style="width:110px">Tag</th>
+                            <th>Message</th>
+                            <th style="width:220px">Detail</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ev-tbody"></tbody>
+                </table>
+                <div id="ev-empty" class="empty-state">Loading events…</div>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const tbody = document.getElementById('ev-tbody');
+    const empty = document.getElementById('ev-empty');
+    const meta  = document.getElementById('events-meta');
+    const search = document.getElementById('ev-search');
+    let events = [];
+    let filter = 'all';
+
+    const fmtTs = (iso) => {
+        try { return new Date(iso).toISOString().replace('T', ' ').replace('Z', '').substring(0, 19); }
+        catch (e) { return iso; }
+    };
+
+    const render = () => {
+        const q = (search.value || '').toLowerCase();
+        const filtered = events.filter(e =>
+            (filter === 'all' || e.severity === filter) &&
+            (!q || (e.tag + ' ' + e.message + ' ' + (e.detail || '') + ' ' + e.source).toLowerCase().includes(q))
+        );
+        meta.textContent = `${filtered.length} of ${events.length} events`;
+        if (filtered.length === 0) {
+            empty.style.display = '';
+            empty.textContent = events.length === 0 ? 'No events yet.' : 'No matches.';
+            tbody.innerHTML = '';
+            return;
+        }
+        empty.style.display = 'none';
+        tbody.innerHTML = filtered.map(e => `
+            <tr>
+                <td>${fmtTs(e.timestamp)}</td>
+                <td class="sev-${e.severity}">${e.severity.toUpperCase()}</td>
+                <td><span style="color:var(--accent)">${e.source}</span></td>
+                <td>${e.tag}</td>
+                <td>${e.message}</td>
+                <td style="color:var(--muted)">${e.detail || ''}</td>
+            </tr>`).join('');
+    };
+
+    const refresh = async () => {
+        try {
+            const r = await ScadaApi.fetchJson('/api/events?limit=400');
+            events = r.items || [];
+            render();
+        } catch (e) {
+            empty.textContent = 'Failed to load events';
+            empty.style.display = '';
+            console.warn(e);
+        }
+    };
+
+    document.querySelectorAll('.ev-filter .pill').forEach(p => {
+        p.addEventListener('click', () => {
+            document.querySelectorAll('.ev-filter .pill').forEach(x => x.classList.remove('active'));
+            p.classList.add('active');
+            filter = p.dataset.filter;
+            render();
+        });
+    });
+    search.addEventListener('input', render);
+    document.getElementById('ev-refresh').addEventListener('click', refresh);
+
+    refresh();
+    setInterval(refresh, 4000);
+})();
+</script>
+{% endblock %}

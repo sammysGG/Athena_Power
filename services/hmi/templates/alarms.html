@@ -1,0 +1,174 @@
+{% extends "_layout.html" %}
+{% set page_title = "Alarm Summary" %}
+
+{% block head %}
+<style>
+    .alarms-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+        gap: 6px;
+        height: 100%;
+        min-height: 0;
+    }
+    .alarm-summary {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+        padding: 10px;
+        background: var(--bg-2);
+        border-bottom: 1px solid var(--line-2);
+    }
+    .alarm-summary .stat {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        padding: 8px 10px;
+    }
+    .alarm-summary .stat .label { color: var(--label); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
+    .alarm-summary .stat .val { font-family: "Consolas", monospace; font-size: 22px; color: var(--value); }
+    .alarm-summary .stat.alarm .val { color: var(--alarm); }
+    .alarm-summary .stat.warn  .val { color: var(--warn); }
+    .alarm-summary .stat.ok    .val { color: var(--ok); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="alarms-grid">
+    <section class="panel">
+        <header class="panel-header">
+            <h2>Active Alarms</h2>
+            <span class="meta" id="alarm-meta">— ACTIVE</span>
+        </header>
+        <div class="alarm-summary">
+            <div class="stat alarm"><div class="label">Pri 1 — Trip</div><div class="val" id="stat-pri1">0</div></div>
+            <div class="stat warn"><div class="label">Pri 2 — Warning</div><div class="val" id="stat-pri2">0</div></div>
+            <div class="stat"><div class="label">Pri 3 — Info</div><div class="val" id="stat-pri3">0</div></div>
+            <div class="stat ok"><div class="label">Last Update</div><div class="val mono" id="stat-update">--:--:--</div></div>
+        </div>
+        <div class="panel-body" style="padding:0;">
+            <div class="tbl-wrap">
+                <table class="tbl">
+                    <thead>
+                        <tr><th style="width:80px">Time</th><th style="width:40px">Pri</th><th style="width:110px">Tag</th><th>Description</th><th style="width:60px">State</th><th style="width:50px">Ack</th></tr>
+                    </thead>
+                    <tbody id="alarm-tbody"></tbody>
+                </table>
+                <div id="alarm-empty" class="empty-state">— NO ACTIVE ALARMS —</div>
+            </div>
+        </div>
+    </section>
+
+    <aside class="panel">
+        <header class="panel-header">
+            <h2>Acknowledgement</h2>
+            <span class="meta">SHIFT LOG</span>
+        </header>
+        <div class="panel-body scrollable">
+            <div class="notice">
+                <strong>Operator acknowledgement</strong> is recorded locally in this session.
+                Trip-priority alarms remain active until the underlying condition clears at the PLC.
+            </div>
+            <div style="height:10px"></div>
+            <div class="notice warn">
+                <strong>Reminder:</strong> Use the <em>Reset</em> control on the Overview tab to clear an Emergency Trip latch, not the Ack button.
+            </div>
+            <div style="height:10px"></div>
+            <table class="tbl">
+                <thead><tr><th>Time</th><th>Tag</th><th>By</th></tr></thead>
+                <tbody id="ack-tbody"></tbody>
+            </table>
+            <div id="ack-empty" class="empty-state">No acknowledgements yet.</div>
+        </div>
+    </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const tbody = document.getElementById('alarm-tbody');
+    const empty = document.getElementById('alarm-empty');
+    const meta  = document.getElementById('alarm-meta');
+    const ackTbody = document.getElementById('ack-tbody');
+    const ackEmpty = document.getElementById('ack-empty');
+    const stat = (id) => document.getElementById(id);
+    const acks = [];
+    const user = {{ user|tojson }};
+
+    const buildAlarms = (s) => {
+        const out = [];
+        const t = new Date().toISOString().substring(11, 19);
+        const push = (pri, tag, desc) => out.push({ ts: t, pri, tag, desc, state: 'ACT' });
+        if (s.emergency_trip) push(1, 'XA-301', 'EMERGENCY TRIP LATCHED');
+        if (s.chamber_temp_c >= 92) push(1, 'TT-301A', 'PROCESS TEMP HIGH-HIGH');
+        else if (s.chamber_temp_c >= 78) push(2, 'TT-301A', 'PROCESS TEMP HIGH');
+        if (s.bearing_temp_c >= 96) push(1, 'TT-302', 'BEARING TEMP HIGH-HIGH');
+        else if (s.bearing_temp_c >= 80) push(2, 'TT-302', 'BEARING TEMP HIGH');
+        if (s.vibration_mm_s >= 6.6) push(1, 'VT-301', 'VIBRATION HIGH-HIGH');
+        else if (s.vibration_mm_s >= 4.8) push(2, 'VT-301', 'VIBRATION HIGH');
+        if (s.pressure_kpa >= 165) push(1, 'PT-201', 'HEADER PRESSURE HIGH-HIGH');
+        else if (s.pressure_kpa >= 146) push(2, 'PT-201', 'HEADER PRESSURE HIGH');
+        if (s.rpm >= 9600) push(1, 'SI-301', 'OVERSPEED');
+        else if (s.rpm >= 9200) push(2, 'SI-301', 'SPEED HIGH');
+        if (s.control_mode === 'FIELD OVERRIDE') push(2, 'TIC-301', 'CASCADE BYPASSED — FIELD SP ACTIVE');
+        if (s.alarm_level === 'warning' && out.length === 0) push(3, 'CF-301', s.alarm_text || 'WARNING');
+        return out;
+    };
+
+    const ackedKeys = new Set();
+    const keyOf = (a) => a.pri + ':' + a.tag + ':' + a.desc;
+
+    const renderAcks = () => {
+        if (acks.length === 0) {
+            ackEmpty.style.display = '';
+            ackTbody.innerHTML = '';
+            return;
+        }
+        ackEmpty.style.display = 'none';
+        ackTbody.innerHTML = acks.slice(-20).reverse().map(a => `
+            <tr><td>${a.ts}</td><td>${a.tag}</td><td>${a.by}</td></tr>`).join('');
+    };
+
+    const render = (s) => {
+        const alarms = buildAlarms(s).sort((a, b) => a.pri - b.pri);
+        stat('stat-pri1').textContent = alarms.filter(a => a.pri === 1).length;
+        stat('stat-pri2').textContent = alarms.filter(a => a.pri === 2).length;
+        stat('stat-pri3').textContent = alarms.filter(a => a.pri === 3).length;
+        stat('stat-update').textContent = new Date(s.timestamp).toLocaleTimeString();
+
+        if (alarms.length === 0) {
+            empty.style.display = '';
+            tbody.innerHTML = '';
+            meta.textContent = '0 ACTIVE';
+            return;
+        }
+        empty.style.display = 'none';
+        meta.textContent = `${alarms.length} ACTIVE`;
+        tbody.innerHTML = alarms.map(a => {
+            const k = keyOf(a);
+            const acked = ackedKeys.has(k);
+            return `
+                <tr class="${acked ? '' : 'unack'}">
+                    <td>${a.ts}</td>
+                    <td class="pri-${a.pri}">${a.pri}</td>
+                    <td><span style="color:var(--accent)">${a.tag}</span></td>
+                    <td>${a.desc}</td>
+                    <td class="${acked ? 'state-ack' : 'state-act'}">${acked ? 'ACK' : 'ACT'}</td>
+                    <td>${acked ? '<span style="color:var(--muted)">✓</span>' : `<button class="hmi-btn" data-ack="${k}" data-tag="${a.tag}">Ack</button>`}</td>
+                </tr>`;
+        }).join('');
+        tbody.querySelectorAll('[data-ack]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const k = btn.getAttribute('data-ack');
+                ackedKeys.add(k);
+                acks.push({ ts: new Date().toISOString().substring(11, 19), tag: btn.getAttribute('data-tag'), by: user.username });
+                renderAcks();
+                render(s);
+            });
+        });
+    };
+
+    window.addEventListener('scada:state', (e) => render(e.detail));
+    renderAcks();
+})();
+</script>
+{% endblock %}
