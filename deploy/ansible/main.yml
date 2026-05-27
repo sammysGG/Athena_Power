@@ -1,5 +1,9 @@
 ---
-# SCADA-range deployment (systemd-native — no Docker).
+# SCADA-range deployment — single-file playbook (systemd-native, no Docker).
+#
+# Everything lives here: range variables, the rendered .env, and all tasks.
+# There is no group_vars/ or templates/ — override any var at runtime with -e,
+# e.g.  --extra-vars "bridge_api_key=... simulator_api_key=... scada_domain=..."
 #
 # Targets: Debian/Ubuntu host on the isolated range network.
 # Result : source synced to {{ scada_dir }}, a shared Python venv, and four
@@ -8,7 +12,7 @@
 #          slave exposed on the OT VLAN.
 #
 # Run:
-#   ansible-playbook -i inventory.ini playbook.yml
+#   ansible-playbook -i inventory.ini main.yml
 #
 # First-time bootstrap (target with no python yet) — install python3 first:
 #   ansible -i inventory.ini all -m raw -a 'apt-get update && apt-get install -y python3' -b
@@ -19,6 +23,7 @@
   gather_facts: true
 
   vars:
+    # ─── Deploy layout ───────────────────────────────────────────────────
     scada_dir: /opt/scada-range
     scada_venv: /opt/scada-range/.venv
     scada_services:
@@ -26,6 +31,38 @@
       - scada-modbus.service
       - scada-bridge.service
       - scada-hmi.service
+
+    # ─── Range identity ──────────────────────────────────────────────────
+    scada_site_name: "Athena Range"
+    scada_domain:    "scada.range.local"
+
+    # ─── Vulnerable defaults (intentional for the range) ─────────────────
+    # Match what /manual advertises so the default-creds path works.
+    hmi_username:    "admin"
+    hmi_password:    "Cool2Pass"
+    viewer_username: "viewer"
+    viewer_password: "viewer"
+
+    # ─── Inter-service API keys (NOT the attack surface) ─────────────────
+    # Protect the bridge <-> simulator <-> HMI channels. Override at runtime:
+    #   ansible-playbook ... -e bridge_api_key=... -e simulator_api_key=...
+    bridge_api_key:    "CHANGE_ME_BRIDGE"
+    simulator_api_key: "CHANGE_ME_SIM"
+
+    # ─── Network exposure on the host ────────────────────────────────────
+    # Bind to 0.0.0.0 so red team on the range VLAN can reach both ports.
+    hmi_bind:    "0.0.0.0"
+    hmi_port:    18080
+    modbus_bind: "0.0.0.0"
+    modbus_port: 15020
+
+    # ─── Plant tuning ────────────────────────────────────────────────────
+    poll_seconds:  1.0
+    history_limit: 900
+    event_limit:   2000
+
+    # ─── Optional: open the host firewall (set true if the target runs ufw)
+    range_open_firewall: false
 
   tasks:
     # ─── 1. System prerequisites ─────────────────────────────────────────
@@ -98,13 +135,46 @@
         mode: '0750'
 
     # ─── 5. Range-appropriate shared .env (read by every unit) ───────────
-    - name: Render .env from template
-      ansible.builtin.template:
-        src: env.j2
+    # Inlined here (was templates/env.j2). Under systemd the services run
+    # side-by-side on the host, so the inter-service URLs point at 127.0.0.1
+    # instead of compose service names. The API keys are exposed under both
+    # the SCADA_* names (simulator) and the bare names (bridge + hmi).
+    - name: Render the shared .env
+      ansible.builtin.copy:
         dest: "{{ scada_dir }}/.env"
         owner: scada
         group: scada
         mode: '0640'
+        content: |
+          # Managed by Ansible — edits will be overwritten on next deploy.
+          SCADA_STACK_NAME=scada
+          SCADA_DOMAIN={{ scada_domain }}
+          SCADA_SITE_NAME={{ scada_site_name }}
+
+          SCADA_HMI_USERNAME={{ hmi_username }}
+          SCADA_HMI_PASSWORD={{ hmi_password }}
+          SCADA_HMI_VIEWER_USERNAME={{ viewer_username }}
+          SCADA_HMI_VIEWER_PASSWORD={{ viewer_password }}
+
+          SCADA_BRIDGE_API_KEY={{ bridge_api_key }}
+          SCADA_SIMULATOR_API_KEY={{ simulator_api_key }}
+          BRIDGE_API_KEY={{ bridge_api_key }}
+          SIMULATOR_API_KEY={{ simulator_api_key }}
+
+          SIMULATOR_URL=http://127.0.0.1:9101
+          MODBUS_HOST=127.0.0.1
+          MODBUS_PORT={{ modbus_port }}
+          POLL_SECONDS={{ poll_seconds }}
+          HISTORY_LIMIT={{ history_limit }}
+          EVENT_LIMIT={{ event_limit }}
+          BRIDGE_DB_PATH=/var/lib/scada/telemetry.db
+
+          BRIDGE_URL=http://127.0.0.1:9102
+
+          SCADA_HMI_BIND_ADDRESS={{ hmi_bind }}
+          SCADA_HMI_PUBLISHED_PORT={{ hmi_port }}
+          SCADA_MODBUS_BIND_ADDRESS={{ modbus_bind }}
+          SCADA_MODBUS_PUBLISHED_PORT={{ modbus_port }}
 
     - name: Own the deploy tree as scada
       ansible.builtin.file:

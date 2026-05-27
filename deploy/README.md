@@ -21,7 +21,7 @@ The four units are:
 | Python 3 (`python3`) | Ansible needs it. One-shot bootstrap below if it's missing. |
 | SSH key access for an account with sudo | The playbook uses `become: true`. |
 | Outbound internet during deploy (or a local PyPI mirror) | First run `pip install`s each service's requirements into the venv. See [Air-gap](#air-gap-deploy). |
-| Host firewall ports | `443/tcp` (HMI via nginx), `18080/tcp` (HMI direct, optional), `15020/tcp` (Modbus). The playbook can open them via `ufw` — see `range_open_firewall` in `group_vars/all.yml`. |
+| Host firewall ports | `443/tcp` (HMI via nginx), `18080/tcp` (HMI direct, optional), `15020/tcp` (Modbus). The playbook can open them via `ufw` — see `range_open_firewall` in the `vars:` block of `main.yml`. |
 
 You do **not** need: a domain, a public CA, a Cloudflare tunnel, or any external
 reverse proxy. The range is meant to be reached directly by IP from the attacker
@@ -40,10 +40,14 @@ ansible-galaxy collection install ansible.posix community.general
 cd deploy/ansible
 cp inventory.ini.example inventory.ini
 $EDITOR inventory.ini          # set the target IP and SSH user
-$EDITOR group_vars/all.yml     # set bridge_api_key, simulator_api_key (or use --extra-vars)
+$EDITOR main.yml               # edit the vars: block (bridge_api_key, simulator_api_key, ...)
+                               # or override at runtime with --extra-vars
 
-ansible-playbook -i inventory.ini playbook.yml
+ansible-playbook -i inventory.ini main.yml
 ```
+
+Everything (range vars, the rendered `.env`, and all tasks) lives in the single
+`main.yml` — there is no `group_vars/` or `templates/`.
 
 The playbook prints the access details at the end:
 
@@ -68,7 +72,7 @@ Then run the playbook normally.
 dependencies and restarts the four units:
 
 ```bash
-ansible-playbook -i inventory.ini playbook.yml
+ansible-playbook -i inventory.ini main.yml
 ```
 
 ## Managing the services on the target
@@ -82,13 +86,13 @@ journalctl -u scada-simulator.service -f    # live logs
 ## Secrets handling
 
 The two inter-service keys (`bridge_api_key`, `simulator_api_key`) protect the
-internal channels. Bake them into a vault file rather than checking the cleartext
-into git:
+internal channels. Keep them out of git — pass them at runtime, or put them in
+an ansible-vault file and load it with `-e`:
 
 ```bash
-ansible-vault create group_vars/all.vault.yml
+ansible-vault create secrets.vault.yml
 # put bridge_api_key / simulator_api_key inside
-ansible-playbook -i inventory.ini playbook.yml --ask-vault-pass
+ansible-playbook -i inventory.ini main.yml -e @secrets.vault.yml --ask-vault-pass
 ```
 
 The HMI credentials (`admin` / `Cool2Pass`) are intentionally weak — they're
